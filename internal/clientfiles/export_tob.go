@@ -22,6 +22,9 @@ const (
 	tobEffectSlots  = 12
 	tobEmptySpa     = "254"
 
+	tobDbStrFactionName             = 45
+	tobDbStrTributeName             = 48
+	tobDbStrTributeDescription      = 49
 	tobDbStrGuildTributeName        = 50
 	tobDbStrGuildTributeDescription = 51
 )
@@ -207,10 +210,28 @@ func (e *Exporter) ExportTobDbStr(db *gorm.DB) (string, error) {
 		add(id, t, row[2])
 	}
 
-	// TOB reads guild tribute names and descriptions from db strings
-	rows, err = tobQuery(db, "SELECT SQL_NO_CACHE id, name, descr FROM tributes WHERE isguild = 1 ORDER BY id ASC")
+	// TOB reads faction and tribute names from db strings, which db_str usually doesn't have, so fill them in from
+	// their own tables without replacing anything db_str already has
+	fill := func(id, t int, text string) {
+		if _, ok := dbStrings[key{id, t}]; !ok {
+			add(id, t, text)
+		}
+	}
+
+	rows, err = tobQuery(db, "SELECT SQL_NO_CACHE id, name FROM faction_list ORDER BY id ASC")
 	if err != nil {
-		e.logger.Warn().Err(err).Msg("failed to read guild tributes")
+		e.logger.Warn().Err(err).Msg("failed to read factions")
+	} else {
+		for _, row := range rows {
+			if id, err := strconv.Atoi(row[0]); err == nil {
+				fill(id, tobDbStrFactionName, row[1])
+			}
+		}
+	}
+
+	rows, err = tobQuery(db, "SELECT SQL_NO_CACHE id, isguild, name, descr FROM tributes ORDER BY id ASC")
+	if err != nil {
+		e.logger.Warn().Err(err).Msg("failed to read tributes")
 	} else {
 		for _, row := range rows {
 			id, err := strconv.Atoi(row[0])
@@ -218,11 +239,16 @@ func (e *Exporter) ExportTobDbStr(db *gorm.DB) (string, error) {
 				continue
 			}
 
-			add(id, tobDbStrGuildTributeName, row[1])
+			nameType, descrType := tobDbStrTributeName, tobDbStrTributeDescription
+			if row[1] != "0" {
+				nameType, descrType = tobDbStrGuildTributeName, tobDbStrGuildTributeDescription
+			}
 
-			descr := strings.ReplaceAll(row[2], "</p><p>", "<br>")
+			descr := strings.ReplaceAll(row[3], "</p><p>", "<br>")
 			descr = strings.ReplaceAll(strings.ReplaceAll(descr, "<p>", ""), "</p>", "")
-			add(id, tobDbStrGuildTributeDescription, descr)
+
+			fill(id, nameType, row[2])
+			fill(id, descrType, descr)
 		}
 	}
 
