@@ -111,7 +111,7 @@ func InitializeApplication() (App, error) {
 	launcher := eqemuserver.NewLauncher(appLogger, config, settings, pathManagement, eqemuserverClient, clientManager, crashLogWatcher)
 	userEvent := auditlog.NewUserEvent(resolver, cache)
 	eqemuserverController := eqemuserver.NewController(resolver, eqemuserverClient, appLogger, config, pathManagement, settings, updater, launcher, cache, userEvent)
-	publicController := eqemuserver.NewPublicController(resolver, eqemuserverClient, config, pathManagement, settings, updater)
+	publicController := eqemuserver.NewPublicController(resolver, eqemuserverClient, config, pathManagement, settings, updater, exporter)
 	eqemuserverconfigController := eqemuserverconfig.NewController(config)
 	backupController := backup.NewController(mysql, pathManagement)
 	handler := websocket.NewHandler(pathManagement)
