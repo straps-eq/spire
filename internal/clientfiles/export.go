@@ -28,9 +28,12 @@ func (e *Exporter) getDatabase(g *gorm.DB) *sql.DB {
 	return db
 }
 
+// RoF2MaxSpellId is the highest spell id the RoF2 client can load, a spells_us.txt with higher ids breaks it
+const RoF2MaxSpellId = 44999
+
 func (e *Exporter) ExportSpells(db *gorm.DB) string {
 	var entries []map[string]interface{}
-	db.Model(&models.SpellsNew{}).Find(&entries)
+	db.Model(&models.SpellsNew{}).Where("id <= ?", RoF2MaxSpellId).Find(&entries)
 
 	columns, err := database.GetTableSchema(db, "spells_new")
 	if err != nil {

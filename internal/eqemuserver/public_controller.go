@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 type PublicController struct {
@@ -108,6 +110,10 @@ func (a *PublicController) exportClientFile(c echo.Context) error {
 
 	downloadFile := filepath.Join(a.pathmgmt.GetExportDir(), export.file)
 	if _, err := os.Stat(downloadFile); !errors.Is(err, os.ErrNotExist) {
+		if exportType == "spells" {
+			return a.serveRoF2Spells(c, downloadFile)
+		}
+
 		return c.Attachment(downloadFile, filepath.Base(downloadFile))
 	}
 
@@ -151,4 +157,27 @@ func (a *PublicController) exportTobClientFile(c echo.Context) error {
 	c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", file))
 
 	return c.Blob(http.StatusOK, "text/plain", []byte(contents))
+}
+
+// serveRoF2Spells serves spells_us.txt without the spells the RoF2 client can't load
+func (a *PublicController) serveRoF2Spells(c echo.Context, file string) error {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
+	}
+
+	lines := strings.Split(string(b), "\n")
+	kept := lines[:0]
+	for _, l := range lines {
+		id, err := strconv.Atoi(strings.SplitN(l, "^", 2)[0])
+		if err == nil && id > clientfiles.RoF2MaxSpellId {
+			continue
+		}
+
+		kept = append(kept, l)
+	}
+
+	c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", filepath.Base(file)))
+
+	return c.Blob(http.StatusOK, "text/plain", []byte(strings.Join(kept, "\n")))
 }
