@@ -90,7 +90,7 @@ func InitializeApplication() (App, error) {
 	questapiController := questapi.NewController(parseService, examplesGithubSourcer)
 	appController := app.NewController(cache, init, userUser, settings, resolver)
 	queryController := query.NewController(resolver, appLogger)
-	exporter := clientfiles.NewExporter(appLogger)
+	exporter := clientfiles.NewExporter(appLogger, pathManagement)
 	importer := clientfiles.NewImporter(appLogger)
 	clientfilesController := clientfiles.NewController(exporter, importer, resolver)
 	staticMapController := staticmaps.NewStaticMapController(resolver)

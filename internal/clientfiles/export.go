@@ -6,16 +6,18 @@ import (
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/logger"
 	"github.com/EQEmu/spire/internal/models"
+	"github.com/EQEmu/spire/internal/pathmgmt"
 	"gorm.io/gorm"
 	"strings"
 )
 
 type Exporter struct {
-	logger *logger.AppLogger
+	logger   *logger.AppLogger
+	pathmgmt *pathmgmt.PathManagement
 }
 
-func NewExporter(logger *logger.AppLogger) *Exporter {
-	return &Exporter{logger: logger}
+func NewExporter(logger *logger.AppLogger, pathmgmt *pathmgmt.PathManagement) *Exporter {
+	return &Exporter{logger: logger, pathmgmt: pathmgmt}
 }
 
 func (e *Exporter) getDatabase(g *gorm.DB) *sql.DB {

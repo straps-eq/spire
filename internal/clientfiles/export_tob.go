@@ -1,8 +1,11 @@
 package clientfiles
 
 import (
+	"bufio"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -185,6 +188,26 @@ func tobDbStrText(text string) string {
 	return text
 }
 
+// id and type of a dbstr_us.txt line ("id^type^text^0^")
+func tobDbStrKey(line string) (int, int, bool) {
+	parts := strings.SplitN(line, "^", 3)
+	if len(parts) != 3 {
+		return 0, 0, false
+	}
+
+	id, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, false
+	}
+
+	t, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, false
+	}
+
+	return id, t, true
+}
+
 func (e *Exporter) ExportTobDbStr(db *gorm.DB) (string, error) {
 	type key struct{ id, t int }
 	dbStrings := map[key]string{}
@@ -252,6 +275,36 @@ func (e *Exporter) ExportTobDbStr(db *gorm.DB) (string, error) {
 		}
 	}
 
+	// the database holds only part of the client's strings; without the rest the client loses AA and spell
+	// descriptions and many of its own texts, so every stock string the database doesn't replace is kept
+	var unkeyed []string
+	if e.pathmgmt != nil {
+		basePath := filepath.Join(e.pathmgmt.GetEQEmuServerPath(), "export", "tob", "base", "dbstr_us.txt")
+		if file, err := os.Open(basePath); err == nil {
+			scanner := bufio.NewScanner(file)
+			scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+			for scanner.Scan() {
+				line := strings.TrimRight(scanner.Text(), "\r")
+				id, t, ok := tobDbStrKey(line)
+				if !ok {
+					if line != "" {
+						unkeyed = append(unkeyed, line)
+					}
+					continue
+				}
+				if _, ok := dbStrings[key{id, t}]; !ok {
+					dbStrings[key{id, t}] = line
+				}
+			}
+			file.Close()
+			if err := scanner.Err(); err != nil {
+				e.logger.Warn().Err(err).Str("path", basePath).Msg("failed to read the stock TOB dbstr_us.txt")
+			}
+		} else {
+			e.logger.Warn().Str("path", basePath).Msg("no stock TOB dbstr_us.txt, exporting database strings only")
+		}
+	}
+
 	keys := make([]key, 0, len(dbStrings))
 	for k := range dbStrings {
 		keys = append(keys, k)
@@ -263,7 +316,8 @@ func (e *Exporter) ExportTobDbStr(db *gorm.DB) (string, error) {
 		return keys[i].t < keys[j].t
 	})
 
-	lines := make([]string, 0, len(keys))
+	lines := make([]string, 0, len(unkeyed)+len(keys))
+	lines = append(lines, unkeyed...)
 	for _, k := range keys {
 		lines = append(lines, dbStrings[k])
 	}
